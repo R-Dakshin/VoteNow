@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, Plus, Trash2, Settings, Users, BarChart3, LogOut, Vote, UserPlus, Shield, Database, CheckCircle, AlertCircle, RotateCcw } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2, Settings, Users, BarChart3, LogOut, Vote, UserPlus, Shield, Database, CheckCircle, AlertCircle, RotateCcw, Upload, Download } from 'lucide-react';
 import './App.css';
 import BackgroundVideo from './components/BackgroundVideo';
 import AnimatedParticles from './components/AnimatedParticles';
@@ -31,6 +31,8 @@ const VotingSystem = () => {
   const [newAdmin, setNewAdmin] = useState({ email: '', password: '', name: '' });
   const [newVoter, setNewVoter] = useState({ email: '', password: '', name: '' });
   const [adminTab, setAdminTab] = useState('candidates');
+  const [selectedVoters, setSelectedVoters] = useState([]);
+  const [csvFile, setCsvFile] = useState(null);
 
   // MongoDB API Base URL
   const API_URL = process.env.REACT_APP_API_URL || '/api';
@@ -360,6 +362,207 @@ const VotingSystem = () => {
       }
     } catch (err) {
       setError('Failed to update settings. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Parse CSV file
+  const parseCSV = (text) => {
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length === 0) return [];
+
+    // Check if first line is header
+    const hasHeader = lines[0].toLowerCase().includes('name') || 
+                      lines[0].toLowerCase().includes('email') || 
+                      lines[0].toLowerCase().includes('password');
+    
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+    
+    return dataLines.map((line, index) => {
+      // Handle CSV with quotes and commas
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+      
+      // Support both comma and tab separated
+      const parts = values.length >= 3 ? values : line.split('\t');
+      
+      return {
+        name: parts[0]?.trim() || '',
+        email: parts[1]?.trim() || '',
+        password: parts[2]?.trim() || ''
+      };
+    }).filter(voter => voter.name && voter.email && voter.password);
+  };
+
+  // Handle CSV file upload
+  const handleCSVUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      setError('Please upload a CSV file');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const text = await file.text();
+      const voters = parseCSV(text);
+
+      if (voters.length === 0) {
+        setError('No valid voters found in CSV. Format: name,email,password');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/voters/bulk-upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voters })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        await loadAllData();
+        setCsvFile(null);
+        const successCount = data.results.success.length;
+        const failedCount = data.results.failed.length;
+        setError(`✅ Upload complete! ${successCount} voters processed successfully${failedCount > 0 ? `, ${failedCount} failed` : ''}`);
+        setTimeout(() => setError(''), 5000);
+      } else {
+        setError(data.message || 'Failed to upload voters');
+      }
+    } catch (err) {
+      setError('Failed to process CSV file. Please check the format.');
+    } finally {
+      setLoading(false);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
+  // Download CSV template
+  const downloadCSVTemplate = () => {
+    const template = 'name,email,password\nJohn Doe,john@example.com,password123\nJane Smith,jane@example.com,password456';
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'voters_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Toggle voter selection
+  const toggleVoterSelection = (voterId) => {
+    setSelectedVoters(prev => 
+      prev.includes(voterId) 
+        ? prev.filter(id => id !== voterId)
+        : [...prev, voterId]
+    );
+  };
+
+  // Select all voters
+  const selectAllVoters = () => {
+    setSelectedVoters(voters.map(v => v._id));
+  };
+
+  // Deselect all voters
+  const deselectAllVoters = () => {
+    setSelectedVoters([]);
+  };
+
+  // Bulk delete voters
+  const bulkDeleteVoters = async () => {
+    if (selectedVoters.length === 0) {
+      setError('Please select at least one voter to delete');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete ${selectedVoters.length} voter(s)? This action cannot be undone.`)) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_URL}/voters/bulk-delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voterIds: selectedVoters })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        await loadAllData();
+        setSelectedVoters([]);
+        setError(`✅ ${data.results.deleted.length} voter(s) deleted successfully`);
+        setTimeout(() => setError(''), 5000);
+      } else {
+        setError(data.message || 'Failed to delete voters');
+      }
+    } catch (err) {
+      setError('Failed to delete voters. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Bulk reset voters
+  const bulkResetVoters = async () => {
+    if (selectedVoters.length === 0) {
+      setError('Please select at least one voter to reset');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to reset votes for ${selectedVoters.length} voter(s)? They will be able to vote again.`)) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_URL}/voters/bulk-reset`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voterIds: selectedVoters })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        await loadAllData();
+        setSelectedVoters([]);
+        setError(`✅ ${data.results.reset.length} voter(s) reset successfully`);
+        setTimeout(() => setError(''), 5000);
+      } else {
+        setError(data.message || 'Failed to reset voters');
+      }
+    } catch (err) {
+      setError('Failed to reset voters. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -889,11 +1092,103 @@ const VotingSystem = () => {
                 </button>
               </div>
 
+              {/* Bulk Upload Section */}
+              <div className="form-section slide-in-up" style={{ marginTop: '20px' }}>
+                <h2 className="form-section-title">
+                  <Upload />
+                  Bulk Upload Voters (CSV)
+                </h2>
+                <div style={{ marginBottom: '15px' }}>
+                  <p className="text-body" style={{ marginBottom: '10px' }}>
+                    Upload a CSV file with columns: <strong>name,email,password</strong>
+                  </p>
+                  <button
+                    onClick={downloadCSVTemplate}
+                    className="btn-secondary"
+                    style={{ marginRight: '10px' }}
+                  >
+                    <Download className="w-4 h-4" style={{ marginRight: '5px' }} />
+                    Download Template
+                  </button>
+                  <label className="btn-primary" style={{ cursor: 'pointer', display: 'inline-block' }}>
+                    <Upload className="w-4 h-4" style={{ marginRight: '5px' }} />
+                    Choose CSV File
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCSVUpload}
+                      style={{ display: 'none' }}
+                      disabled={loading}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Bulk Actions */}
+              {voters.length > 0 && (
+                <div className="form-section slide-in-up" style={{ marginTop: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <span className="text-body">
+                        {selectedVoters.length > 0 ? `${selectedVoters.length} selected` : 'Select voters for bulk actions'}
+                      </span>
+                      {selectedVoters.length > 0 && (
+                        <>
+                          <button
+                            onClick={selectAllVoters}
+                            className="btn-secondary"
+                            style={{ padding: '5px 10px', fontSize: '12px' }}
+                          >
+                            Select All
+                          </button>
+                          <button
+                            onClick={deselectAllVoters}
+                            className="btn-secondary"
+                            style={{ padding: '5px 10px', fontSize: '12px' }}
+                          >
+                            Deselect All
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {selectedVoters.length > 0 && (
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={bulkResetVoters}
+                          disabled={loading}
+                          className="btn-secondary"
+                        >
+                          <RotateCcw className="w-4 h-4" style={{ marginRight: '5px' }} />
+                          Reset Votes ({selectedVoters.length})
+                        </button>
+                        <button
+                          onClick={bulkDeleteVoters}
+                          disabled={loading}
+                          className="btn-secondary"
+                          style={{ backgroundColor: '#ef4444', color: 'white' }}
+                        >
+                          <Trash2 className="w-4 h-4" style={{ marginRight: '5px' }} />
+                          Delete ({selectedVoters.length})
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="card-grid">
                 {voters.map((voter, index) => (
                   <div key={voter._id} className="candidate-card slide-in-up" style={{ animationDelay: `${index * 0.1}s` }}>
                     <div className="candidate-content">
-                      <h3 className="candidate-title">{voter.name}</h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedVoters.includes(voter._id)}
+                          onChange={() => toggleVoterSelection(voter._id)}
+                          style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                        />
+                        <h3 className="candidate-title" style={{ flex: 1, margin: 0 }}>{voter.name}</h3>
+                      </div>
                       <p className="text-body mb-3">{voter.email}</p>
                       <div className="flex items-center gap-2 mb-4">
                         <div className={`w-3 h-3 rounded-full ${voter.hasVoted ? 'bg-green-500' : 'bg-red-500'}`}></div>
