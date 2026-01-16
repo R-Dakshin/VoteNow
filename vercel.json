@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "installCommand": "npm install && cd votehub-frontend && npm install",
+  "buildCommand": "cd votehub-frontend && npm run build",
+  "outputDirectory": "votehub-frontend/build",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
