@@ -32,7 +32,6 @@ const VotingSystem = () => {
   const [newVoter, setNewVoter] = useState({ email: '', password: '', name: '' });
   const [adminTab, setAdminTab] = useState('candidates');
   const [selectedVoters, setSelectedVoters] = useState([]);
-  const [csvFile, setCsvFile] = useState(null);
 
   // MongoDB API Base URL
   const API_URL = process.env.REACT_APP_API_URL || '/api';
@@ -442,7 +441,6 @@ const VotingSystem = () => {
 
       if (data.success) {
         await loadAllData();
-        setCsvFile(null);
         const successCount = data.results.success.length;
         const failedCount = data.results.failed.length;
         setError(`✅ Upload complete! ${successCount} voters processed successfully${failedCount > 0 ? `, ${failedCount} failed` : ''}`);
