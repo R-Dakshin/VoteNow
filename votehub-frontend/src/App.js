@@ -431,7 +431,7 @@ const VotingSystem = () => {
         return;
       }
 
-      const response = await fetch(`${API_URL}/voters/bulk-upload`, {
+      const response = await fetch(`${API_URL}/voters?action=bulk-upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voters })
@@ -505,7 +505,7 @@ const VotingSystem = () => {
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/voters/bulk-delete`, {
+      const response = await fetch(`${API_URL}/voters?action=bulk-delete`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voterIds: selectedVoters })
@@ -543,7 +543,7 @@ const VotingSystem = () => {
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/voters/bulk-reset`, {
+      const response = await fetch(`${API_URL}/voters?action=bulk-reset`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voterIds: selectedVoters })
