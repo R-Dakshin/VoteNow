@@ -38,10 +38,14 @@ module.exports = async (req, res) => {
       return res.json({ success: false, message: 'You have already voted' });
     }
 
-    // Check votes per person limit
+    // Check votes per person limit and whether voting is open
     const settings = await Settings.findOne();
     if (!settings) {
       return res.json({ success: false, message: 'Settings not found' });
+    }
+
+    if (settings.votingOpen === false) {
+      return res.json({ success: false, message: 'Voting is currently closed' });
     }
     
     if (candidateIds.length > settings.votesPerPerson) {

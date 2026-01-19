@@ -26,6 +26,7 @@ const VotingSystem = () => {
   const [voters, setVoters] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [votesPerPerson, setVotesPerPerson] = useState(1);
+  const [votingOpen, setVotingOpen] = useState(true);
   const [selectedVotes, setSelectedVotes] = useState([]);
   const [newCandidate, setNewCandidate] = useState({ title: '', description: '', image: '' });
   const [newAdmin, setNewAdmin] = useState({ email: '', password: '', name: '' });
@@ -99,6 +100,11 @@ const VotingSystem = () => {
       setVoters(votersData.data || []);
       setCandidates(candidatesData.data || []);
       setVotesPerPerson(settingsData.data?.votesPerPerson || 1);
+      setVotingOpen(
+        settingsData.data?.votingOpen === undefined
+          ? true
+          : !!settingsData.data.votingOpen
+      );
     } catch (err) {
       console.error('Error loading data:', err);
     }
@@ -152,6 +158,11 @@ const VotingSystem = () => {
 
   // Submit Votes
   const submitVotes = async () => {
+    if (!votingOpen) {
+      setError('Voting is currently closed');
+      return;
+    }
+
     if (selectedVotes.length === 0) {
       setError('Please select at least one candidate');
       return;
@@ -349,13 +360,18 @@ const VotingSystem = () => {
       const response = await fetch(`${API_URL}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ votesPerPerson: newValue })
+        body: JSON.stringify({ votesPerPerson: newValue, votingOpen })
       });
 
       const data = await response.json();
 
       if (data.success) {
-        setVotesPerPerson(newValue);
+        setVotesPerPerson(data.data?.votesPerPerson ?? newValue);
+        setVotingOpen(
+          data.data?.votingOpen === undefined
+            ? votingOpen
+            : !!data.data.votingOpen
+        );
       } else {
         setError(data.message || 'Failed to update settings');
       }
@@ -1289,6 +1305,55 @@ const VotingSystem = () => {
                         <option key={num} value={num}>{num}</option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <label className="text-label">Voting Status</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
+                      <span
+                        className="status-badge"
+                        style={{
+                          backgroundColor: votingOpen ? '#dcfce7' : '#fee2e2',
+                          color: votingOpen ? '#166534' : '#b91c1c'
+                        }}
+                      >
+                        {votingOpen ? 'Voting is OPEN' : 'Voting is CLOSED'}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={loading}
+                        onClick={async () => {
+                          setLoading(true);
+                          try {
+                            const response = await fetch(`${API_URL}/settings`, {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ votingOpen: !votingOpen, votesPerPerson })
+                            });
+                            const data = await response.json();
+                            if (data.success) {
+                              setVotingOpen(
+                                data.data?.votingOpen === undefined
+                                  ? !votingOpen
+                                  : !!data.data.votingOpen
+                              );
+                              setVotesPerPerson(
+                                data.data?.votesPerPerson ?? votesPerPerson
+                              );
+                              setError('');
+                            } else {
+                              setError(data.message || 'Failed to update voting status');
+                            }
+                          } catch (err) {
+                            setError('Failed to update voting status. Please try again.');
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
+                      >
+                        {votingOpen ? 'Close Voting' : 'Open Voting'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

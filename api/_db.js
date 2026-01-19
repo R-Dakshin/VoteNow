@@ -28,6 +28,7 @@ const candidateSchema = new mongoose.Schema({
 
 const settingsSchema = new mongoose.Schema({
   votesPerPerson: { type: Number, default: 1 },
+  votingOpen: { type: Boolean, default: true },
   updatedAt: { type: Date, default: Date.now }
 });
 
@@ -85,7 +86,7 @@ async function connectToDatabase() {
     // Create default settings if none exists
     const settingsCount = await Settings.countDocuments();
     if (settingsCount === 0) {
-      await Settings.create({ votesPerPerson: 1 });
+      await Settings.create({ votesPerPerson: 1, votingOpen: true });
     }
 
     return { Admin, Voter, Candidate, Settings };

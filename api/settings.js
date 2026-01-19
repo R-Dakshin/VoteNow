@@ -23,17 +23,26 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
       let settings = await Settings.findOne();
       if (!settings) {
-        settings = await Settings.create({ votesPerPerson: 1 });
+        settings = await Settings.create({ votesPerPerson: 1, votingOpen: true });
       }
       return res.json({ success: true, data: settings });
     }
 
     // Update Settings
     if (req.method === 'PUT') {
-      const { votesPerPerson } = req.body;
+      const { votesPerPerson, votingOpen } = req.body;
+
+      const update = { updatedAt: Date.now() };
+      if (typeof votesPerPerson === 'number') {
+        update.votesPerPerson = votesPerPerson;
+      }
+      if (typeof votingOpen === 'boolean') {
+        update.votingOpen = votingOpen;
+      }
+
       const settings = await Settings.findOneAndUpdate(
         {},
-        { votesPerPerson, updatedAt: Date.now() },
+        update,
         { new: true, upsert: true }
       );
       return res.json({ success: true, data: settings });

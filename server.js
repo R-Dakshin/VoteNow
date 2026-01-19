@@ -38,6 +38,7 @@ const candidateSchema = new mongoose.Schema({
 
 const settingsSchema = new mongoose.Schema({
   votesPerPerson: { type: Number, default: 1 },
+  votingOpen: { type: Boolean, default: true },
   updatedAt: { type: Date, default: Date.now }
 });
 
@@ -107,7 +108,7 @@ app.post('/api/init', async (req, res) => {
     // Create default settings if none exists
     const settingsCount = await Settings.countDocuments();
     if (settingsCount === 0) {
-      await Settings.create({ votesPerPerson: 1 });
+      await Settings.create({ votesPerPerson: 1, votingOpen: true });
     }
 
     res.json({ success: true, message: 'Connected to MongoDB successfully' });
@@ -328,10 +329,14 @@ app.post('/api/vote', checkDbInitialized, async (req, res) => {
       return res.json({ success: false, message: 'You have already voted' });
     }
 
-    // Check votes per person limit
+    // Check votes per person limit and whether voting is open
     const settings = await Settings.findOne();
     if (!settings) {
       return res.json({ success: false, message: 'Settings not found' });
+    }
+
+    if (settings.votingOpen === false) {
+      return res.json({ success: false, message: 'Voting is currently closed' });
     }
     
     if (candidateIds.length > settings.votesPerPerson) {
@@ -377,10 +382,19 @@ app.get('/api/settings', checkDbInitialized, async (req, res) => {
 // Update Settings
 app.put('/api/settings', checkDbInitialized, async (req, res) => {
   try {
-    const { votesPerPerson } = req.body;
+    const { votesPerPerson, votingOpen } = req.body;
+    const update = { updatedAt: Date.now() };
+
+    if (typeof votesPerPerson === 'number') {
+      update.votesPerPerson = votesPerPerson;
+    }
+    if (typeof votingOpen === 'boolean') {
+      update.votingOpen = votingOpen;
+    }
+
     const settings = await Settings.findOneAndUpdate(
       {},
-      { votesPerPerson, updatedAt: Date.now() },
+      update,
       { new: true, upsert: true }
     );
     res.json({ success: true, data: settings });
