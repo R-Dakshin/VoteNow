@@ -133,7 +133,7 @@ git push -u origin main
 
 **Your MongoDB Connection String Format:**
 ```
-mongodb+srv://rdakshin7_db_user:<db_password>@voting.inpdqma.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
+mongodb+srv://<your_db_username>:<db_password>@<your_cluster_address>.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
 ```
 
 **Important:** Replace `<db_password>` with your actual database password. URL encode special characters if needed:
@@ -146,7 +146,7 @@ mongodb+srv://rdakshin7_db_user:<db_password>@voting.inpdqma.mongodb.net/votingS
 
 **Example with encoded password:**
 ```
-mongodb+srv://rdakshin7_db_user:MyP%40ss%23123@voting.inpdqma.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
+mongodb+srv://<your_db_username>:MyP%40ss%23123@<your_cluster_address>.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
 ```
 
 4. **Redeploy**

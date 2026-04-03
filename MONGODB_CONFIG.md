@@ -4,7 +4,7 @@
 
 **Base Connection String:**
 ```
-mongodb+srv://rdakshin7_db_user:<db_password>@voting.inpdqma.mongodb.net/?appName=Voting
+mongodb+srv://<your_db_username>:<db_password>@<your_cluster_address>.mongodb.net/?appName=Voting
 ```
 
 ## Complete Connection String for Vercel
@@ -18,7 +18,7 @@ To use this connection string in Vercel, you need to:
 **Final Format for Vercel Environment Variable:**
 
 ```
-mongodb+srv://rdakshin7_db_user:YOUR_PASSWORD@voting.inpdqma.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
+mongodb+srv://<your_db_username>:YOUR_PASSWORD@<your_cluster_address>.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
 ```
 
 ## Password URL Encoding
@@ -43,7 +43,7 @@ If your password contains special characters, you MUST URL encode them:
 - Encoded: `MyP%40ss%23123`
 - Connection String: 
   ```
-  mongodb+srv://rdakshin7_db_user:MyP%40ss%23123@voting.inpdqma.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
+  mongodb+srv://<your_db_username>:MyP%40ss%23123@<your_cluster_address>.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
   ```
 
 ## Setting in Vercel
@@ -74,8 +74,8 @@ If the connection is successful, the `/api/init` endpoint should return:
 
 ## Quick Reference
 
-- **Username:** `rdakshin7_db_user`
-- **Cluster:** `voting.inpdqma.mongodb.net`
+- **Username:** `<your_db_username>`
+- **Cluster:** `<your_cluster_address>.mongodb.net`
 - **App Name:** `Voting`
 - **Database Name:** `votingSystem` (will be created automatically if it doesn't exist)
 
@@ -96,7 +96,7 @@ If the connection is successful, the `/api/init` endpoint should return:
 4. Verify database user has proper permissions
 
 ### Authentication Error
-- Double-check username: `rdakshin7_db_user`
+- Double-check username: `<your_db_username>`
 - Verify password is correct (try resetting in MongoDB Atlas if needed)
 - Ensure password is URL encoded if it contains special characters
 

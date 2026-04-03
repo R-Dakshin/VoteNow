@@ -89,10 +89,10 @@ app.post('/api/init', async (req, res) => {
     });
 
     // Initialize Models
-    Admin = mongoose.model('Admin', adminSchema);
-    Voter = mongoose.model('Voter', voterSchema);
-    Candidate = mongoose.model('Candidate', candidateSchema);
-    Settings = mongoose.model('Settings', settingsSchema);
+    Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
+    Voter = mongoose.models.Voter || mongoose.model('Voter', voterSchema);
+    Candidate = mongoose.models.Candidate || mongoose.model('Candidate', candidateSchema);
+    Settings = mongoose.models.Settings || mongoose.model('Settings', settingsSchema);
 
     // Create default admin if none exists
     const adminCount = await Admin.countDocuments();
@@ -301,9 +301,22 @@ app.post('/api/candidates', checkDbInitialized, async (req, res) => {
 // Delete Candidate
 app.delete('/api/candidates/:id', checkDbInitialized, async (req, res) => {
   try {
-    await Candidate.findByIdAndDelete(req.params.id);
+    const candidateId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(candidateId)) {
+      return res.json({ success: false, message: 'Invalid candidate ID format' });
+    }
+
+    // Clean up votes from voters who voted for this candidate
+    await Voter.updateMany(
+      { votes: candidateId },
+      { $pull: { votes: candidateId } }
+    );
+    
+    await Candidate.findByIdAndDelete(candidateId);
     res.json({ success: true, message: 'Candidate deleted successfully' });
   } catch (error) {
+    console.error('Delete candidate error:', error);
     res.json({ success: false, message: error.message });
   }
 });

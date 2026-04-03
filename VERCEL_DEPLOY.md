@@ -37,7 +37,7 @@
 
    **Your MongoDB Connection String Format:**
    ```
-   mongodb+srv://rdakshin7_db_user:<db_password>@voting.inpdqma.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
+   mongodb+srv://<your_db_username>:<db_password>@<your_cluster_address>.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
    ```
    
    **Important:** Replace `<db_password>` with your actual database password. If your password contains special characters, URL encode them:
@@ -50,7 +50,7 @@
    
    **Example with encoded password:**
    ```
-   mongodb+srv://rdakshin7_db_user:MyP%40ss%23123@voting.inpdqma.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
+   mongodb+srv://<your_db_username>:MyP%40ss%23123@<your_cluster_address>.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
    ```
 
 ## Step 2: Deploy to Vercel
