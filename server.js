@@ -301,7 +301,13 @@ app.post('/api/candidates', checkDbInitialized, async (req, res) => {
 // Delete Candidate
 app.delete('/api/candidates/:id', checkDbInitialized, async (req, res) => {
   try {
-    await Candidate.findByIdAndDelete(req.params.id);
+    const candidateId = req.params.id;
+    // Clean up votes from voters who voted for this candidate
+    await Voter.updateMany(
+      { votes: candidateId },
+      { $pull: { votes: candidateId } }
+    );
+    await Candidate.findByIdAndDelete(candidateId);
     res.json({ success: true, message: 'Candidate deleted successfully' });
   } catch (error) {
     res.json({ success: false, message: error.message });

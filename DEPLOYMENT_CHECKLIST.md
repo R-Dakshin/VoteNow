@@ -10,7 +10,7 @@
 - [ ] Get connection string and URL-encode password
 - [ ] Test connection string format (YOUR CONNECTION STRING):
   ```
-  mongodb+srv://rdakshin7_db_user:<db_password>@voting.inpdqma.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
+  mongodb+srv://<your_db_username>:<db_password>@<your_cluster_address>.mongodb.net/votingSystem?retryWrites=true&w=majority&appName=Voting
   ```
   **Replace `<db_password>` with your actual password (URL encode special characters)**
 
