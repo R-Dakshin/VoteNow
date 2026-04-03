@@ -34,8 +34,17 @@ const VotingSystem = () => {
   const [adminTab, setAdminTab] = useState('candidates');
   const [selectedVoters, setSelectedVoters] = useState([]);
 
-  // MongoDB API Base URL
-  const API_URL = process.env.REACT_APP_API_URL || '/api';
+  // Determine the API base URL based on environment
+  const getApiUrl = () => {
+    if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
+    // In local development, default to port 5000 if not proxying correctly
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:5000/api';
+    }
+    return '/api';
+  };
+
+  const API_URL = getApiUrl();
 
   // Initialize Database
   const initializeDatabase = async (uri = null, dbName = null) => {
@@ -244,10 +253,24 @@ const VotingSystem = () => {
     }
 
     setLoading(true);
+    setError('');
+    
     try {
       const response = await fetch(`${API_URL}/candidates/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
       });
+
+      // Handle non-JSON responses (like 500 errors returning HTML)
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error('Server returned non-JSON response:', text);
+        throw new Error(`Server Error: Received ${response.status} ${response.statusText}`);
+      }
 
       const data = await response.json();
 
@@ -258,7 +281,8 @@ const VotingSystem = () => {
         setError(data.message || 'Failed to delete candidate');
       }
     } catch (err) {
-      setError('Failed to delete candidate. Please try again.');
+      console.error('Delete error details:', err);
+      setError(`Error: ${err.message || 'Could not complete the delete request'}`);
     } finally {
       setLoading(false);
     }
