@@ -22,11 +22,19 @@ module.exports = async (req, res) => {
 
   try {
     const { Voter, Candidate } = await connectToDatabase();
-    const voterId = req.query.id;
+    const voterId = req.query.id || (req.body && req.body.id);
+
+    if (!voterId) {
+      return res.status(400).json({ success: false, message: 'Voter ID is required' });
+    }
+
+    if (!require('mongoose').Types.ObjectId.isValid(voterId)) {
+      return res.status(400).json({ success: false, message: 'Invalid voter ID format' });
+    }
 
     const voter = await Voter.findById(voterId);
     if (!voter) {
-      return res.json({ success: false, message: 'Voter not found' });
+      return res.status(404).json({ success: false, message: 'Voter not found' });
     }
 
     // If voter had voted, we need to decrement the vote counts from candidates

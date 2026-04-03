@@ -272,6 +272,11 @@ const VotingSystem = () => {
 
   // Reset Voter Vote
   const resetVoterVote = async (voterId) => {
+    if (!voterId) {
+      setError('Missing voter ID to reset vote');
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to reset this voter\'s vote? They will be able to vote again.')) {
       return;
     }
@@ -288,10 +293,47 @@ const VotingSystem = () => {
         await loadAllData();
         setError('');
       } else {
-        setError(data.message || 'Failed to reset vote');
+        setError(data.message || `Failed to reset vote (status ${response.status})`);
       }
     } catch (err) {
-      setError('Failed to reset vote. Please try again.');
+      console.error('Reset voter vote error:', err);
+      setError(`Failed to reset vote: ${err.message || 'Please try again.'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reset all voters (bulk reset)
+  const resetAllVoters = async () => {
+    if (!window.confirm('Reset all voters? This will clear all votes and allow everyone to vote again.')) {
+      return;
+    }
+
+    if (!voters || voters.length === 0) {
+      setError('No voters available to reset');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const voterIds = voters.map((v) => v._id);
+      const response = await fetch(`${API_URL}/voters?action=bulk-reset-all`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voterIds })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        await loadAllData();
+        setError('');
+      } else {
+        setError(data.message || `Failed to reset all voters (status ${response.status})`);
+      }
+    } catch (err) {
+      console.error('Reset all voters error:', err);
+      setError(`Failed to reset all voters: ${err.message || 'Please try again.'}`);
     } finally {
       setLoading(false);
     }
@@ -863,6 +905,15 @@ const VotingSystem = () => {
 
           {adminTab === 'voters' && (
             <div className="fade-in">
+              <div style={{ marginBottom: '12px', textAlign: 'right' }}>
+                <button
+                  onClick={resetAllVoters}
+                  disabled={loading || voters.length === 0}
+                  className="btn-danger"
+                >
+                  Reset All Voters
+                </button>
+              </div>
               <div className="form-section slide-in-up">
                 <h2 className="form-section-title">
                   <UserPlus />
