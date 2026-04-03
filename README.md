@@ -98,4 +98,4 @@ Professional-grade, secure, and intuitive digital voting system built with React
 ---
 
 ## 📄 License
-MIT License - Developed with ❤️ by [Your Name/Org]
+MIT License - Developed by Dakshin
