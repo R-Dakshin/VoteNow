@@ -200,6 +200,43 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Bulk Reset All Voters (PUT with ?action=bulk-reset-all)
+    if (req.method === 'PUT' && action === 'bulk-reset-all') {
+      const votersToReset = await Voter.find({ hasVoted: true });
+      const results = {
+        reset: [],
+        errors: []
+      };
+
+      for (const voter of votersToReset) {
+        try {
+          if (voter.votes && voter.votes.length > 0) {
+            await Candidate.updateMany(
+              { _id: { $in: voter.votes } },
+              { $inc: { votes: -1 } }
+            );
+          }
+
+          await Voter.findByIdAndUpdate(voter._id, {
+            hasVoted: false,
+            votes: []
+          });
+
+          results.reset.push(voter._id);
+        } catch (error) {
+          results.errors.push({ voterId: voter._id, error: error.message });
+        }
+      }
+
+      await Voter.updateMany({ hasVoted: true }, { hasVoted: false, votes: [] });
+
+      return res.json({
+        success: true,
+        message: `Reset ${results.reset.length} voters. ${results.errors.length} errors.`,
+        results
+      });
+    }
+
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   } catch (error) {
     console.error('Voters API error:', error);
