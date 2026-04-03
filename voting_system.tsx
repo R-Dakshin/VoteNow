@@ -195,18 +195,29 @@ const VotingSystem = () => {
 
   // Delete Candidate
   const deleteCandidate = async (id) => {
+    if (!id) {
+      setError('Candidate ID is missing or invalid before delete');
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/candidates/${id}`, {
+      let response = await fetch(`${API_URL}/candidates/${id}`, {
         method: 'DELETE'
       });
 
       if (response.status === 405) {
-        setError('Delete failed: method not allowed (405). Make sure the endpoint supports DELETE.');
-        return;
+        response = await fetch(`${API_URL}/candidates?id=${encodeURIComponent(id)}`, {
+          method: 'DELETE'
+        });
       }
 
       const data = await response.json();
+
+      if (response.status === 405) {
+        setError('Delete failed: method not allowed (405) after fallback.');
+        return;
+      }
 
       if (data.success) {
         await loadAllData();
