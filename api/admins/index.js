@@ -1,5 +1,5 @@
 // Admin CRUD Operations
-const { connectToDatabase } = require('./_db');
+const { connectToDatabase } = require('../_db');
 const bcrypt = require('bcryptjs');
 
 module.exports = async (req, res) => {
