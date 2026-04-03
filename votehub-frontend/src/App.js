@@ -425,7 +425,7 @@ const VotingSystem = () => {
         setError(data.message || 'Failed to update settings');
       }
     } catch (err) {
-      setError(data.message || 'Failed to update settings');
+      setError(err.message || 'Failed to update settings');
     } finally {
       setLoading(false);
     }
