@@ -6,7 +6,7 @@ module.exports = async (req, res) => {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'DELETE,POST,OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
@@ -17,8 +17,15 @@ module.exports = async (req, res) => {
     return;
   }
 
-  if (req.method !== 'DELETE') {
-    return res.status(405).json({ success: false, message: 'Method not allowed' });
+  const isDeleteOverride =
+    req.method === 'POST' &&
+    (req.query._method === 'DELETE' || (req.body && req.body._method === 'DELETE'));
+
+  if (req.method !== 'DELETE' && !isDeleteOverride) {
+    return res.status(405).json({
+      success: false,
+      message: `Method ${req.method} not allowed on candidate delete endpoint. Use DELETE (or POST with _method=DELETE)`,
+    });
   }
 
   try {
