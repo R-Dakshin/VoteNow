@@ -201,15 +201,21 @@ const VotingSystem = () => {
         method: 'DELETE'
       });
 
+      if (response.status === 405) {
+        setError('Delete failed: method not allowed (405). Make sure the endpoint supports DELETE.');
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
         await loadAllData();
       } else {
-        setError(data.message || 'Failed to delete candidate');
+        setError(data.message || `Failed to delete candidate (status ${response.status})`);
       }
     } catch (err) {
-      setError('Failed to delete candidate. Please try again.');
+      console.error('Delete candidate network error:', err);
+      setError(`Failed to delete candidate: ${err.message || 'network error'}`);
     } finally {
       setLoading(false);
     }

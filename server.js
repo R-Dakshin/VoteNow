@@ -304,7 +304,12 @@ app.delete('/api/candidates/:id', checkDbInitialized, async (req, res) => {
     const candidateId = req.params.id;
 
     if (!mongoose.Types.ObjectId.isValid(candidateId)) {
-      return res.json({ success: false, message: 'Invalid candidate ID format' });
+      return res.status(400).json({ success: false, message: 'Invalid candidate ID format' });
+    }
+
+    const candidate = await Candidate.findById(candidateId);
+    if (!candidate) {
+      return res.status(404).json({ success: false, message: 'Candidate not found' });
     }
 
     // Clean up votes from voters who voted for this candidate
@@ -314,10 +319,10 @@ app.delete('/api/candidates/:id', checkDbInitialized, async (req, res) => {
     );
     
     await Candidate.findByIdAndDelete(candidateId);
-    res.json({ success: true, message: 'Candidate deleted successfully' });
+    res.status(200).json({ success: true, message: 'Candidate deleted successfully' });
   } catch (error) {
     console.error('Delete candidate error:', error);
-    res.json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

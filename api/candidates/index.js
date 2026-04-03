@@ -1,5 +1,5 @@
 // Candidate CRUD Operations
-const { connectToDatabase } = require('./_db');
+const { connectToDatabase } = require('../_db');
 
 module.exports = async (req, res) => {
   // Enable CORS
@@ -32,7 +32,7 @@ module.exports = async (req, res) => {
       return res.json({ success: true, data: candidate });
     }
 
-    return res.status(405).json({ success: false, message: 'Method not allowed' });
+    return res.status(405).json({ success: false, message: `Method ${req.method} not allowed on candidates list endpoint` });
   } catch (error) {
     console.error('Candidates API error:', error);
     res.status(500).json({ success: false, message: error.message });
