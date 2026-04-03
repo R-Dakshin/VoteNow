@@ -27,6 +27,7 @@ const VotingSystem = () => {
   const [candidates, setCandidates] = useState([]);
   const [votesPerPerson, setVotesPerPerson] = useState(1);
   const [selectedVotes, setSelectedVotes] = useState([]);
+  const [cardLayout, setCardLayout] = useState('vertical');
   const [newCandidate, setNewCandidate] = useState({ title: '', description: '', image: '' });
   const [newAdmin, setNewAdmin] = useState({ email: '', password: '', name: '' });
   const [newVoter, setNewVoter] = useState({ email: '', password: '', name: '' });
@@ -98,6 +99,11 @@ const VotingSystem = () => {
       setVoters(votersData.data || []);
       setCandidates(candidatesData.data || []);
       setVotesPerPerson(settingsData.data?.votesPerPerson || 1);
+
+      const savedLayout = localStorage.getItem('cardLayout');
+      if (savedLayout === 'horizontal' || savedLayout === 'vertical') {
+        setCardLayout(savedLayout);
+      }
     } catch (err) {
       console.error('Error loading data:', err);
     }
@@ -419,10 +425,16 @@ const VotingSystem = () => {
         setError(data.message || 'Failed to update settings');
       }
     } catch (err) {
-      setError('Failed to update settings. Please try again.');
+      setError(data.message || 'Failed to update settings');
     } finally {
       setLoading(false);
     }
+  };
+
+  const updateCardLayout = (layout) => {
+    if (layout !== 'vertical' && layout !== 'horizontal') return;
+    setCardLayout(layout);
+    localStorage.setItem('cardLayout', layout);
   };
 
   const handleLogout = () => {
@@ -682,7 +694,7 @@ const VotingSystem = () => {
               <p className="text-body" style={{ fontSize: '18px' }}>No candidates available yet. Please check back later.</p>
             </div>
           ) : (
-            <div className="card-grid">
+            <div className={`card-grid ${cardLayout === 'horizontal' ? 'horizontal' : 'vertical'}`}>
             {candidates.map((candidate, index) => (
               <div
                 key={candidate._id}
@@ -1065,6 +1077,22 @@ const VotingSystem = () => {
                         <option key={num} value={num}>{num}</option>
                       ))}
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="text-label">Candidate Card Layout</label>
+                    <select
+                      value={cardLayout}
+                      onChange={(e) => updateCardLayout(e.target.value)}
+                      className="input-field"
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <option value="vertical">Vertical</option>
+                      <option value="horizontal">Horizontal</option>
+                    </select>
+                    <p className="text-xs" style={{ color: '#64748B', marginTop: '4px' }}>
+                      Choose how candidates are displayed on voting page.
+                    </p>
                   </div>
                 </div>
               </div>
