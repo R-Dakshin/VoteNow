@@ -3,13 +3,66 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = 5000;
+const JWT_SECRET = process.env.JWT_SECRET || 'please_change_this_secret';
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()) : [];
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
+
+function getBearerToken(req) {
+  const authHeader = req.headers.authorization || req.headers.Authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  return authHeader.slice(7);
+}
+
+function verifyAuth(req, res, requiredRole = null) {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ success: false, message: 'Missing authorization token' });
+    return null;
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (requiredRole && payload.type !== requiredRole) {
+      res.status(403).json({ success: false, message: 'Forbidden: insufficient permissions' });
+      return null;
+    }
+    return payload;
+  } catch (error) {
+    res.status(401).json({ success: false, message: 'Invalid or expired token' });
+    return null;
+  }
+}
+
+function createJwt(user) {
+  return jwt.sign(
+    {
+      id: String(user._id),
+      email: user.email,
+      name: user.name,
+      type: user.type
+    },
+    JWT_SECRET,
+    { expiresIn: '4h' }
+  );
+}
 
 // MongoDB Schemas
 const adminSchema = new mongoose.Schema({
@@ -140,17 +193,20 @@ app.post('/api/admin/login', checkDbInitialized, async (req, res) => {
     const admin = await Admin.findOne({ email });
 
     if (!admin) {
-      return res.json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) {
-      return res.json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
+
+    const token = createJwt({ _id: admin._id, email: admin.email, name: admin.name, type: 'admin' });
 
     res.json({
       success: true,
-      user: { _id: admin._id, name: admin.name, email: admin.email }
+      token,
+      user: { _id: admin._id, name: admin.name, email: admin.email, type: 'admin' }
     });
   } catch (error) {
     res.json({ success: false, message: error.message });
@@ -159,6 +215,9 @@ app.post('/api/admin/login', checkDbInitialized, async (req, res) => {
 
 // Get All Admins
 app.get('/api/admins', checkDbInitialized, async (req, res) => {
+  const auth = verifyAuth(req, res, 'admin');
+  if (!auth) return;
+
   try {
     const admins = await Admin.find().select('-password');
     res.json({ success: true, data: admins });
@@ -169,6 +228,9 @@ app.get('/api/admins', checkDbInitialized, async (req, res) => {
 
 // Create Admin
 app.post('/api/admins', checkDbInitialized, async (req, res) => {
+  const auth = verifyAuth(req, res, 'admin');
+  if (!auth) return;
+
   try {
     const { name, email, password } = req.body;
     
@@ -180,7 +242,7 @@ app.post('/api/admins', checkDbInitialized, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const admin = await Admin.create({ name, email, password: hashedPassword });
     
-    res.json({ success: true, data: admin });
+    res.json({ success: true, data: { _id: admin._id, name: admin.name, email: admin.email } });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
@@ -195,22 +257,26 @@ app.post('/api/voter/login', checkDbInitialized, async (req, res) => {
     const voter = await Voter.findOne({ email });
 
     if (!voter) {
-      return res.json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
     const isMatch = await bcrypt.compare(password, voter.password);
     if (!isMatch) {
-      return res.json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
+
+    const token = createJwt({ _id: voter._id, email: voter.email, name: voter.name, type: 'voter' });
 
     res.json({
       success: true,
+      token,
       user: {
         _id: voter._id,
         name: voter.name,
         email: voter.email,
         hasVoted: voter.hasVoted,
-        votes: voter.votes
+        votes: voter.votes,
+        type: 'voter'
       }
     });
   } catch (error) {
@@ -220,6 +286,9 @@ app.post('/api/voter/login', checkDbInitialized, async (req, res) => {
 
 // Get All Voters
 app.get('/api/voters', checkDbInitialized, async (req, res) => {
+  const auth = verifyAuth(req, res, 'admin');
+  if (!auth) return;
+
   try {
     const voters = await Voter.find().select('-password');
     res.json({ success: true, data: voters });
@@ -230,6 +299,9 @@ app.get('/api/voters', checkDbInitialized, async (req, res) => {
 
 // Create Voter
 app.post('/api/voters', checkDbInitialized, async (req, res) => {
+  const auth = verifyAuth(req, res, 'admin');
+  if (!auth) return;
+
   try {
     const { name, email, password } = req.body;
     
@@ -241,7 +313,7 @@ app.post('/api/voters', checkDbInitialized, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const voter = await Voter.create({ name, email, password: hashedPassword });
     
-    res.json({ success: true, data: voter });
+    res.json({ success: true, data: { _id: voter._id, name: voter.name, email: voter.email, hasVoted: voter.hasVoted } });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
@@ -249,13 +321,15 @@ app.post('/api/voters', checkDbInitialized, async (req, res) => {
 
 // Reset Voter Vote (Admin only)
 app.put('/api/voters/:id/reset-vote', checkDbInitialized, async (req, res) => {
+  const auth = verifyAuth(req, res, 'admin');
+  if (!auth) return;
+
   try {
     const voter = await Voter.findById(req.params.id);
     if (!voter) {
       return res.json({ success: false, message: 'Voter not found' });
     }
 
-    // If voter had voted, we need to decrement the vote counts from candidates
     if (voter.hasVoted && voter.votes && voter.votes.length > 0) {
       await Candidate.updateMany(
         { _id: { $in: voter.votes } },
@@ -263,7 +337,6 @@ app.put('/api/voters/:id/reset-vote', checkDbInitialized, async (req, res) => {
       );
     }
 
-    // Reset voter's vote status
     await Voter.findByIdAndUpdate(req.params.id, {
       hasVoted: false,
       votes: []
@@ -289,8 +362,15 @@ app.get('/api/candidates', checkDbInitialized, async (req, res) => {
 
 // Create Candidate
 app.post('/api/candidates', checkDbInitialized, async (req, res) => {
+  const auth = verifyAuth(req, res, 'admin');
+  if (!auth) return;
+
   try {
     const { title, description, image } = req.body;
+    if (!title || !description) {
+      return res.status(400).json({ success: false, message: 'Title and description are required' });
+    }
+
     const candidate = await Candidate.create({ title, description, image });
     res.json({ success: true, data: candidate });
   } catch (error) {
@@ -300,6 +380,9 @@ app.post('/api/candidates', checkDbInitialized, async (req, res) => {
 
 // Delete Candidate
 app.delete('/api/candidates/:id', checkDbInitialized, async (req, res) => {
+  const auth = verifyAuth(req, res, 'admin');
+  if (!auth) return;
+
   try {
     const candidateId = req.params.id;
 
@@ -312,7 +395,6 @@ app.delete('/api/candidates/:id', checkDbInitialized, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Candidate not found' });
     }
 
-    // Clean up votes from voters who voted for this candidate
     await Voter.updateMany(
       { votes: candidateId },
       { $pull: { votes: candidateId } }
@@ -330,47 +412,47 @@ app.delete('/api/candidates/:id', checkDbInitialized, async (req, res) => {
 
 // Submit Vote
 app.post('/api/vote', checkDbInitialized, async (req, res) => {
-  try {
-    const { voterId, candidateIds } = req.body;
+  const auth = verifyAuth(req, res, 'voter');
+  if (!auth) return;
 
-    if (!voterId || !candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
-      return res.json({ success: false, message: 'Invalid vote data' });
+  try {
+    const { candidateIds } = req.body;
+    const voterId = auth.id;
+
+    if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'Invalid vote data' });
     }
 
-    // Check if voter has already voted
     const voter = await Voter.findById(voterId);
     if (!voter) {
-      return res.json({ success: false, message: 'Voter not found' });
-    }
-    
-    if (voter.hasVoted) {
-      return res.json({ success: false, message: 'You have already voted' });
+      return res.status(404).json({ success: false, message: 'Voter not found' });
     }
 
-    // Check votes per person limit and whether voting is open
+    if (voter.hasVoted) {
+      return res.status(400).json({ success: false, message: 'You have already voted' });
+    }
+
     const settings = await Settings.findOne();
     if (!settings) {
-      return res.json({ success: false, message: 'Settings not found' });
+      return res.status(500).json({ success: false, message: 'Settings not found' });
     }
 
     if (settings.votingOpen === false) {
-      return res.json({ success: false, message: 'Voting is currently closed' });
+      return res.status(400).json({ success: false, message: 'Voting is currently closed' });
     }
-    
+
     if (candidateIds.length > settings.votesPerPerson) {
-      return res.json({
+      return res.status(400).json({
         success: false,
         message: `You can only vote for ${settings.votesPerPerson} candidate(s)`
       });
     }
 
-    // Update candidate vote counts
     await Candidate.updateMany(
       { _id: { $in: candidateIds } },
       { $inc: { votes: 1 } }
     );
 
-    // Mark voter as voted
     await Voter.findByIdAndUpdate(voterId, {
       hasVoted: true,
       votes: candidateIds
@@ -399,6 +481,9 @@ app.get('/api/settings', checkDbInitialized, async (req, res) => {
 
 // Update Settings
 app.put('/api/settings', checkDbInitialized, async (req, res) => {
+  const auth = verifyAuth(req, res, 'admin');
+  if (!auth) return;
+
   try {
     const { votesPerPerson, votingOpen } = req.body;
     const update = { updatedAt: Date.now() };

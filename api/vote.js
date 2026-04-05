@@ -1,15 +1,10 @@
 // Submit Vote
 const { connectToDatabase } = require('./_db');
+const mongoose = require('mongoose');
+const { setSecureHeaders, requireAuth } = require('./_auth');
 
 module.exports = async (req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+  setSecureHeaders(req, res, 'POST,OPTIONS');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -20,48 +15,52 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
+  const auth = requireAuth(req, res, 'voter');
+  if (!auth) return;
+
   try {
     const { Voter, Candidate, Settings } = await connectToDatabase();
-    const { voterId, candidateIds } = req.body;
+    const { candidateIds } = req.body;
+    const voterId = auth.id;
 
-    if (!voterId || !candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
-      return res.json({ success: false, message: 'Invalid vote data' });
+    if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'Invalid vote data' });
     }
 
-    // Check if voter has already voted
+    if (!candidateIds.every((id) => mongoose.Types.ObjectId.isValid(id))) {
+      return res.status(400).json({ success: false, message: 'One or more candidate IDs are invalid' });
+    }
+
     const voter = await Voter.findById(voterId);
     if (!voter) {
-      return res.json({ success: false, message: 'Voter not found' });
-    }
-    
-    if (voter.hasVoted) {
-      return res.json({ success: false, message: 'You have already voted' });
+      return res.status(404).json({ success: false, message: 'Voter not found' });
     }
 
-    // Check votes per person limit and whether voting is open
+    if (voter.hasVoted) {
+      return res.status(400).json({ success: false, message: 'You have already voted' });
+    }
+
     const settings = await Settings.findOne();
     if (!settings) {
-      return res.json({ success: false, message: 'Settings not found' });
+      return res.status(500).json({ success: false, message: 'Settings not found' });
     }
 
-    if (settings.votingOpen === false) {
-      return res.json({ success: false, message: 'Voting is currently closed' });
+    if (!settings.votingOpen) {
+      return res.status(400).json({ success: false, message: 'Voting is currently closed' });
     }
-    
+
     if (candidateIds.length > settings.votesPerPerson) {
-      return res.json({
+      return res.status(400).json({
         success: false,
         message: `You can only vote for ${settings.votesPerPerson} candidate(s)`
       });
     }
 
-    // Update candidate vote counts
     await Candidate.updateMany(
       { _id: { $in: candidateIds } },
       { $inc: { votes: 1 } }
     );
 
-    // Mark voter as voted
     await Voter.findByIdAndUpdate(voterId, {
       hasVoted: true,
       votes: candidateIds
@@ -70,6 +69,6 @@ module.exports = async (req, res) => {
     res.json({ success: true, message: 'Vote submitted successfully' });
   } catch (error) {
     console.error('Vote submission error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: 'Failed to submit vote' });
   }
 };

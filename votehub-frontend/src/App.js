@@ -11,6 +11,7 @@ const VotingSystem = () => {
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [authToken, setAuthToken] = useState(localStorage.getItem('authToken') || '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
@@ -20,6 +21,20 @@ const VotingSystem = () => {
     uri: '',
     dbName: 'votingSystem'
   });
+
+  const secureFetch = async (path, options = {}) => {
+    const url = path.startsWith('http')
+      ? path
+      : path.startsWith(API_URL)
+        ? path
+        : `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;
+    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    return fetch(url, { ...options, headers });
+  };
 
   // State management
   const [admins, setAdmins] = useState([]);
@@ -83,17 +98,33 @@ const VotingSystem = () => {
   // Load all data from MongoDB
   const loadAllData = async () => {
     try {
-      const [adminsRes, votersRes, candidatesRes, settingsRes] = await Promise.all([
-        fetch(`${API_URL}/admins`),
-        fetch(`${API_URL}/voters`),
-        fetch(`${API_URL}/candidates`),
-        fetch(`${API_URL}/settings`)
-      ]);
+      const fetchPromises = [
+        secureFetch(`${API_URL}/candidates`),
+        secureFetch(`${API_URL}/settings`)
+      ];
 
-      const adminsData = await adminsRes.json();
-      const votersData = await votersRes.json();
-      const candidatesData = await candidatesRes.json();
-      const settingsData = await settingsRes.json();
+      if (currentUser?.type === 'admin') {
+        fetchPromises.unshift(
+          secureFetch(`${API_URL}/admins`),
+          secureFetch(`${API_URL}/voters`)
+        );
+      }
+
+      const responses = await Promise.all(fetchPromises);
+      let adminsData = { data: [] };
+      let votersData = { data: [] };
+      let candidatesData = { data: [] };
+      let settingsData = { data: { votesPerPerson: 1 } };
+
+      if (currentUser?.type === 'admin') {
+        [adminsData, votersData, candidatesData, settingsData] = await Promise.all(
+          responses.map((res) => res.json())
+        );
+      } else {
+        [candidatesData, settingsData] = await Promise.all(
+          responses.map((res) => res.json())
+        );
+      }
 
       setAdmins(adminsData.data || []);
       setVoters(votersData.data || []);
@@ -126,8 +157,10 @@ const VotingSystem = () => {
       const data = await response.json();
 
       if (data.success) {
+        const token = data.token || '';
+        setAuthToken(token);
+        localStorage.setItem('authToken', token);
         setCurrentUser({ ...data.user, type: userType });
-        // Reload all data to get latest vote counts and voter status
         await loadAllData();
         setCurrentView(userType === 'admin' ? 'admin' : 'voting');
         setLoginData({ email: '', password: '' });
@@ -171,13 +204,9 @@ const VotingSystem = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/vote`, {
+      const response = await secureFetch(`${API_URL}/vote`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          voterId: currentUser._id,
-          candidateIds: selectedVotes
-        })
+        body: JSON.stringify({ candidateIds: selectedVotes })
       });
 
       const data = await response.json();
@@ -206,9 +235,8 @@ const VotingSystem = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/candidates`, {
+      const response = await secureFetch(`${API_URL}/candidates`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newCandidate,
           image: newCandidate.image || 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400'
@@ -244,13 +272,13 @@ const VotingSystem = () => {
 
     setLoading(true);
     try {
-      let response = await fetch(`${API_URL}/candidates/${id}`, {
+      let response = await secureFetch(`${API_URL}/candidates/${id}`, {
         method: 'DELETE'
       });
 
       if (response.status === 405) {
         // Retry fallback route in case the delete URL is not supported by platform
-        response = await fetch(`${API_URL}/candidates?id=${encodeURIComponent(id)}`, {
+        response = await secureFetch(`${API_URL}/candidates?id=${encodeURIComponent(id)}`, {
           method: 'DELETE'
         });
       }
@@ -289,7 +317,7 @@ const VotingSystem = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/voters/${voterId}/reset-vote`, {
+      const response = await secureFetch(`${API_URL}/voters/${voterId}/reset-vote`, {
         method: 'PUT'
       });
 
@@ -323,9 +351,8 @@ const VotingSystem = () => {
     setLoading(true);
     try {
       const voterIds = voters.map((v) => v._id);
-      const response = await fetch(`${API_URL}/voters?action=bulk-reset-all`, {
+      const response = await secureFetch(`${API_URL}/voters?action=bulk-reset-all`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voterIds })
       });
 
@@ -354,9 +381,8 @@ const VotingSystem = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/admins`, {
+      const response = await secureFetch(`${API_URL}/admins`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAdmin)
       });
 
@@ -385,9 +411,8 @@ const VotingSystem = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/voters`, {
+      const response = await secureFetch(`${API_URL}/voters`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newVoter)
       });
 
@@ -411,9 +436,8 @@ const VotingSystem = () => {
   const updateVotesPerPerson = async (newValue) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/settings`, {
+      const response = await secureFetch(`${API_URL}/settings`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ votesPerPerson: newValue })
       });
 
@@ -439,6 +463,8 @@ const VotingSystem = () => {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setAuthToken('');
+    localStorage.removeItem('authToken');
     setCurrentView('login');
     setLoginData({ email: '', password: '' });
     setSelectedVotes([]);
