@@ -1,15 +1,9 @@
 // Settings Management
 const { connectToDatabase } = require('./_db');
+const { setSecureHeaders, requireAuth } = require('./_auth');
 
 module.exports = async (req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+  setSecureHeaders(req, res, 'GET,PUT,OPTIONS');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -19,7 +13,6 @@ module.exports = async (req, res) => {
   try {
     const { Settings } = await connectToDatabase();
 
-    // Get Settings
     if (req.method === 'GET') {
       let settings = await Settings.findOne();
       if (!settings) {
@@ -28,10 +21,11 @@ module.exports = async (req, res) => {
       return res.json({ success: true, data: settings });
     }
 
-    // Update Settings
     if (req.method === 'PUT') {
-      const { votesPerPerson, votingOpen } = req.body;
+      const auth = requireAuth(req, res, 'admin');
+      if (!auth) return;
 
+      const { votesPerPerson, votingOpen } = req.body;
       const update = { updatedAt: Date.now() };
       if (typeof votesPerPerson === 'number') {
         update.votesPerPerson = votesPerPerson;

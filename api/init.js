@@ -1,15 +1,9 @@
 // Initialize Database Connection (for backward compatibility)
 const { connectToDatabase } = require('./_db');
+const { setSecureHeaders } = require('./_auth');
 
 module.exports = async (req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+  setSecureHeaders(req, res, 'POST,OPTIONS');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -20,15 +14,17 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
+  if (process.env.INIT_SECRET && req.body.secret !== process.env.INIT_SECRET) {
+    return res.status(401).json({ success: false, message: 'Invalid initialization secret' });
+  }
+
   try {
-    // Connect to database using environment variables
     await connectToDatabase();
     res.json({ success: true, message: 'Connected to MongoDB successfully' });
   } catch (error) {
     console.error('Database connection error:', error);
     let errorMessage = error.message;
     
-    // Provide more helpful error messages
     if (error.message.includes('authentication failed')) {
       errorMessage = 'Authentication failed. Please check your username and password.';
     } else if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
